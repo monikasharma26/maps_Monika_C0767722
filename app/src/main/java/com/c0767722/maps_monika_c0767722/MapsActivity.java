@@ -37,6 +37,7 @@ import com.google.android.gms.tasks.Task;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -52,8 +53,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private Marker dest_marker;
     private Polyline polyline;
     private Polygon polygon;
+    String text = "";
     private static final int POLYGON_NUM = 4;
     List<Marker> markersList = new ArrayList<>();
+    int markerCount = 0; //marker counter
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,10 +82,40 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
+            return;
+        }
+        mMap.setMyLocationEnabled(true);
+        mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
+            @Override
+            public void onMapClick(LatLng latLng) {
+                if (markerCount < 4) {
+                    markerCount = markerCount + 1;
+                    if (markerCount == 1) {
+                        text = "A";
+                    } else if (markerCount == 2) {
+                        text = "B";
+                    } else if (markerCount == 3) {
+                        text = "C";
+                    } else if (markerCount == 4) {
+                        text = "D";
+                    } else {
+                        text = "";
+                    }
+                    setDestinationLocation(latLng, text);
+                }
+                System.out.println("Polygon Count"+markersList.size());
+                    if (markersList.size() == POLYGON_NUM) {
+                        drawShape();
+
+                }
+            }
+        });
         mMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
             @Override
             public void onMapLongClick(LatLng latLng) {
-                setDestinationLocation(latLng);
+                clearDestinationMap();
             }
         });
 
@@ -92,15 +125,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             initLocationCallback();
         fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper());
 
-       fusedLocationProviderClient.getLastLocation().addOnCompleteListener(this, new OnCompleteListener<Location>() {
+        fusedLocationProviderClient.getLastLocation().addOnCompleteListener(this, new OnCompleteListener<Location>() {
             @Override
             public void onComplete(@NonNull Task<Location> task) {
                 if (task.isSuccessful() && task.getResult() != null) {
                     Location location = task.getResult();
                     LatLng marker = new LatLng(location.getLatitude(), location.getLongitude());
-                  //  setHomeLocation(marker);
-                  //  mMap.addMarker(new MarkerOptions().position(marker).title("Current use  location").icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW)));
-                  //  mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(marker, 10));
+                    setHomeLocation(location);
+                    //  mMap.addMarker(new MarkerOptions().position(marker).title("Current use  location").icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW)));
+                    //  mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(marker, 10));
                 }
             }
         });
@@ -109,16 +142,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
         mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));*/
     }
+
     private void initLocationCallback() {
         locationCallback = new LocationCallback() {
             @Override
             public void onLocationResult(LocationResult locationResult) {
                 //super.onLocationResult(locationResult);
-                for (Location location: locationResult.getLocations()) {
+                for (Location location : locationResult.getLocations()) {
                     // get address
                     Geocoder geocoder = new Geocoder(getApplicationContext(), Locale.getDefault());
                     try {
-                        List<Address> addresses =  geocoder.getFromLocation(location.getLatitude(), location.getLongitude(), 1);
+                        List<Address> addresses = geocoder.getFromLocation(location.getLatitude(), location.getLongitude(), 1);
                         if (addresses != null && addresses.size() > 0) {
 
                         }
@@ -130,22 +164,36 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         };
     }
-    private void setDestinationLocation(LatLng location) {
-        MarkerOptions markerOptions = new MarkerOptions().position(location)
-                .title("Your Destination")
-                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
-                .draggable(true);
 
+    private void clearDestinationMap() {
         if (markersList.size() == POLYGON_NUM) {
             clearMap();
         }
+    }
 
-       markersList.add(mMap.addMarker(markerOptions));
+    private void setDestinationLocation(LatLng location, String text) {
+       /* MarkerOptions markerOptions = new MarkerOptions().position(location)
+                .title("Your Destination")
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
+                .draggable(true);*/
+        MarkerOptions option = getMarkerOption(location);
+        Marker marker = mMap.addMarker(option);
+        if (dest_marker != null) {
+            PolylineOptions polylineOptions = new PolylineOptions()
+                    .color(Color.RED)
+                    .width(10)
+                    .add(marker.getPosition(), dest_marker.getPosition());
+            mMap.addPolyline(polylineOptions);
 
-        if (markersList.size() == POLYGON_NUM) {
-            drawShape();
         }
-       // drawLine(curr_marker.getPosition(), dest_marker.getPosition());
+        dest_marker = marker;
+        markersList.add(marker);
+
+
+        //  markersList.add(mMap.addMarker(option));
+
+
+        // drawLine(curr_marker.getPosition(), dest_marker.getPosition());
 
     }
 
@@ -168,6 +216,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper());
         }
     }
+
     private void initLocation() {
         // init location client
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
@@ -178,25 +227,29 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         locationRequest.setFastestInterval(3000);
         locationRequest.setSmallestDisplacement(10);
     }
-    private void setHomeLocation(LatLng location) {
-        MarkerOptions markerOptions = new MarkerOptions().position(location)
-                // .title("Your Location")
-                //.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
-                .snippet("");
-        curr_marker = mMap.addMarker(markerOptions);
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(location, 20));
+
+    private void setHomeLocation(Location location) {
+        LatLng userLocation = new LatLng(location.getLatitude(), location.getLongitude());
+       // MarkerOptions markerOptions = new MarkerOptions().position(userLocation);
+        // .title("Your Location")
+        //.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
+        // .snippet("");
+      //  curr_marker = mMap.addMarker(markerOptions);
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 10));
     }
+
     private void clearMap() {
         if (dest_marker != null) {
             dest_marker.remove();
             dest_marker = null;
         }
-        for (int i = 0; i<POLYGON_NUM; i++) {
+        for (int i = 0; i < POLYGON_NUM; i++) {
             markersList.get(i).remove();
         }
         markersList.removeAll(markersList);
         polygon.remove();
     }
+
     private void drawLine(LatLng home, LatLng dest) {
         PolylineOptions polylineOptions = new PolylineOptions()
                 .add(home, dest)
@@ -219,6 +272,48 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
         polygon = mMap.addPolygon(polygonOptions);
     }
+    /**
+    *
+     */
 
+    private MarkerOptions getMarkerOption(LatLng latLng) {
+        String[] markerAddress = getMarkerAddress(latLng);
+        System.out.println(Arrays.toString(markerAddress));
+        MarkerOptions option = new MarkerOptions().position(latLng);
+        if (markerAddress != null) {
+            option.title(markerAddress[0]).snippet(markerAddress[1]);
+        }
+        return option;
+    }
+
+    private String[] getMarkerAddress(LatLng latLng) {
+        Geocoder geocoder = new Geocoder(this);
+        String[] addressData = null;
+        StringBuilder title = new StringBuilder("");
+        StringBuilder snippet = new StringBuilder("");
+        try {
+            Address address = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1).get(0);
+            if (address.getSubThoroughfare() != null) {
+                title.append(text +", " +address.getSubThoroughfare());
+            }
+            if (address.getThoroughfare() != null) {
+                title.append(text + "," + address.getThoroughfare());
+            }
+            if (address.getPostalCode() != null) {
+                title.append(text + ", " + address.getPostalCode());
+            }
+            if (address.getLocality() != null) {
+                snippet.append(address.getLocality());
+            }
+            if (address.getAdminArea() != null) {
+                snippet.append(", ");
+                snippet.append(", " + address.getAdminArea());
+            }
+            addressData = new String[]{title.toString(), snippet.toString()};
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return addressData;
+    }
 
 }
