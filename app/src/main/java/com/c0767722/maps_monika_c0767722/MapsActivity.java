@@ -14,6 +14,7 @@ import android.location.Location;
 import android.os.Bundle;
 import android.os.Looper;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
@@ -24,7 +25,6 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
@@ -38,10 +38,12 @@ import com.google.android.gms.tasks.Task;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
+public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnMarkerDragListener {
 
     private GoogleMap mMap;
 
@@ -53,10 +55,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private Marker dest_marker;
     private Polyline polyline;
     private Polygon polygon;
+    Marker newMarker;
     String text = "";
     private static final int POLYGON_NUM = 4;
     List<Marker> markersList = new ArrayList<>();
+    List<Polyline> polylinesList = new ArrayList<>();
+    List<String> res = new ArrayList<>();
+    List<Float> resultList = new ArrayList<>();
+
     int markerCount = 0; //marker counter
+    boolean dragMarker = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -87,6 +95,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             return;
         }
         mMap.setMyLocationEnabled(true);
+
         mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
             @Override
             public void onMapClick(LatLng latLng) {
@@ -105,9 +114,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     }
                     setDestinationLocation(latLng, text);
                 }
-                System.out.println("Polygon Count"+markersList.size());
-                    if (markersList.size() == POLYGON_NUM) {
-                        drawShape();
+                System.out.println("Polygon Count" + markersList.size());
+                if (markersList.size() == POLYGON_NUM) {
+                    drawShape();
 
                 }
             }
@@ -116,6 +125,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             @Override
             public void onMapLongClick(LatLng latLng) {
                 clearDestinationMap();
+                //  clearMap();
             }
         });
 
@@ -137,6 +147,25 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 }
             }
         });
+
+        mMap.setOnPolylineClickListener(new GoogleMap.OnPolylineClickListener() {
+            @Override
+            public void onPolylineClick(Polyline polyline) {
+
+            }
+        });
+
+        mMap.setOnPolygonClickListener(new GoogleMap.OnPolygonClickListener() {
+            @Override
+            public void onPolygonClick(Polygon pu) {
+                Log.d("ssss", "MARKERLIST +" + markersList);
+                Float d1234 = ((resultList.get(0)) / 1000 + ((resultList.get(0)) / 1000) + ((resultList.get(0)) / 1000) + ((resultList.get(0)) / 1000));
+                Toast.makeText(getApplicationContext(), "Total Distance: " + d1234 + " km", Toast.LENGTH_SHORT).show();
+
+            }
+        });
+
+        mMap.setOnMarkerDragListener(this);
        /* // Add a marker in Sydney and move the camera
         LatLng sydney = new LatLng(-34, 151);
         mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
@@ -166,16 +195,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     private void clearDestinationMap() {
+        if (polylinesList != null) {
+            clearMap();
+        }
         if (markersList.size() == POLYGON_NUM) {
             clearMap();
         }
     }
 
     private void setDestinationLocation(LatLng location, String text) {
-       /* MarkerOptions markerOptions = new MarkerOptions().position(location)
-                .title("Your Destination")
-                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
-                .draggable(true);*/
+
         MarkerOptions option = getMarkerOption(location);
         Marker marker = mMap.addMarker(option);
         if (dest_marker != null) {
@@ -183,19 +212,46 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     .color(Color.RED)
                     .width(10)
                     .add(marker.getPosition(), dest_marker.getPosition());
-            mMap.addPolyline(polylineOptions);
+            polyline = mMap.addPolyline(polylineOptions);
+            polyline.setClickable(true);
+            polylinesList.add(polyline);
 
         }
+
         dest_marker = marker;
+
         markersList.add(marker);
 
-
-        //  markersList.add(mMap.addMarker(option));
-
-
-        // drawLine(curr_marker.getPosition(), dest_marker.getPosition());
-
     }
+
+    public static List<LatLng> reDrawPolyLine(List<LatLng> latLngs) {
+
+        List<LatLng> latLngList = getCornerOrder(latLngs);
+
+        if (latLngList.get(0).latitude > latLngList.get(1).latitude) {
+            LatLng lng = latLngList.get(0);
+            latLngList.set(0, latLngList.get(1));
+            latLngList.set(1, lng);
+        }
+
+        if (latLngList.get(2).latitude < latLngList.get(3).latitude) {
+            LatLng lng = latLngList.get(2);
+            latLngList.set(2, latLngList.get(3));
+            latLngList.set(3, lng);
+        }
+        return latLngList;
+    }
+
+    private static List<LatLng> getCornerOrder(List<LatLng> points) {
+        Collections.sort(points, new Comparator<LatLng>() {
+            @Override
+            public int compare(LatLng p1, LatLng p2) {
+                return Double.compare(p1.longitude, p2.longitude);
+            }
+        });
+        return points;
+    }
+
 
     private boolean checkPermission() {
         int isGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION);
@@ -230,34 +286,49 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private void setHomeLocation(Location location) {
         LatLng userLocation = new LatLng(location.getLatitude(), location.getLongitude());
-       // MarkerOptions markerOptions = new MarkerOptions().position(userLocation);
+        // MarkerOptions markerOptions = new MarkerOptions().position(userLocation);
         // .title("Your Location")
         //.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
         // .snippet("");
-      //  curr_marker = mMap.addMarker(markerOptions);
+        //  curr_marker = mMap.addMarker(markerOptions);
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 10));
     }
 
     private void clearMap() {
+
+        if (polylinesList.size() != 0) {
+            for (int i = 0; i < polylinesList.size(); i++) {
+                polylinesList.get(i).remove();
+                polyline.remove();
+            }
+            polylinesList.removeAll(polylinesList);
+        }
+
+        markerCount = 0;
         if (dest_marker != null) {
             dest_marker.remove();
             dest_marker = null;
         }
-        for (int i = 0; i < POLYGON_NUM; i++) {
-            markersList.get(i).remove();
+        if (markersList.size() != 0) {
+            for (int i = 0; i < markersList.size(); i++) {
+                markersList.get(i).remove();
+            }
+
+            markersList.removeAll(markersList);
+
+            polygon.remove();
         }
-        markersList.removeAll(markersList);
-        polygon.remove();
     }
 
-    private void drawLine(LatLng home, LatLng dest) {
-        PolylineOptions polylineOptions = new PolylineOptions()
-                .add(home, dest)
-                .clickable(true)
-                .color(Color.RED)
-                .width(10)
-                .visible(true);
-        polyline = mMap.addPolyline(polylineOptions);
+    private void drawLine(Marker marker) {
+        if (dest_marker != null) {
+            PolylineOptions polylineOptions = new PolylineOptions()
+                    .color(Color.RED)
+                    .width(20)
+                    .add(marker.getPosition(), dest_marker.getPosition());
+            polyline = mMap.addPolyline(polylineOptions);
+            polylinesList.add(polyline);
+        }
     }
 
     private void drawShape() {
@@ -271,10 +342,57 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             polygonOptions.add(markersList.get(i).getPosition());
         }
         polygon = mMap.addPolygon(polygonOptions);
+
     }
+
     /**
-    *
+     *
      */
+
+    private void getNewPolyLines(List<LatLng> latLngList) {
+        for (int i = 0; i < POLYGON_NUM; i++) {
+            if (i == 0) {
+                drawLine(latLngList.get(3), latLngList.get(i));
+            } else {
+                drawLine(latLngList.get(i), latLngList.get(i - 1));
+            }
+        }
+    }
+
+
+    private void clearPolyLines() {
+        Log.d("ssss", "datata: " + polylinesList.size());
+        for (Polyline polyline : polylinesList) {
+            polyline.remove();
+        }
+        polylinesList.clear();
+
+        //markerCount = 0;
+    }
+
+    private void reDrawShape() {
+        PolygonOptions polygonOptions = new PolygonOptions();
+        List<LatLng> newLaLong = new ArrayList<>();
+
+        for (int i = 0; i < POLYGON_NUM; i++) {
+            newMarker = markersList.get(i);
+            Log.d("ssss", "reDrawShape: " + newMarker.getTitle());
+            LatLng latLng = newMarker.getPosition();
+            getNewMarkerOption(latLng);
+            newLaLong.add(newMarker.getPosition());
+        }
+        clearPolyLines();
+        newLaLong = reDrawPolyLine(newLaLong);
+        getNewPolyLines(newLaLong);
+        for (LatLng latLng : newLaLong) {
+            polygonOptions.add(latLng);
+        }
+
+        polygonOptions.fillColor(Color.GREEN);
+        polygon = mMap.addPolygon(polygonOptions);
+        polygon.setClickable(true);
+
+    }
 
     private MarkerOptions getMarkerOption(LatLng latLng) {
         String[] markerAddress = getMarkerAddress(latLng);
@@ -282,8 +400,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         MarkerOptions option = new MarkerOptions().position(latLng);
         if (markerAddress != null) {
             option.title(markerAddress[0]).snippet(markerAddress[1]);
+            option.draggable(true);
         }
         return option;
+    }
+
+    private void getNewMarkerOption(LatLng latLng) {
+        String[] markerAddress = getMarkerAddress(latLng);
+        System.out.println(Arrays.toString(markerAddress));
+        MarkerOptions option = new MarkerOptions().position(latLng);
+        if (markerAddress != null) {
+            option.title(markerAddress[0]).snippet(markerAddress[1]);
+            option.draggable(true);
+        }
+
     }
 
     private String[] getMarkerAddress(LatLng latLng) {
@@ -294,7 +424,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         try {
             Address address = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1).get(0);
             if (address.getSubThoroughfare() != null) {
-                title.append(text +", " +address.getSubThoroughfare());
+                title.append(text + ", " + address.getSubThoroughfare());
             }
             if (address.getThoroughfare() != null) {
                 title.append(text + "," + address.getThoroughfare());
@@ -315,5 +445,53 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
         return addressData;
     }
+
+    private void drawLine(LatLng position, LatLng position1) {
+        PolylineOptions polylineOptions = new PolylineOptions()
+                .color(Color.RED)
+                .width(20)
+                .add(position, position1);
+        Polyline polyline = mMap.addPolyline(polylineOptions);
+        polyline.setClickable(true);
+        polylinesList.add(polyline);
+    }
+
+    private void clearPolygon() {
+        if (polygon != null)
+            polygon.remove();
+
+        polygon = null;
+    }
+
+    private void drawAllPolylines() {
+        Marker marker = null;
+        for (Marker markerl : markersList) {
+            if (marker != null) {
+                drawLine(marker.getPosition(), markerl.getPosition());
+            }
+            marker = markerl;
+        }
+    }
+
+
+    @Override
+    public void onMarkerDragStart(Marker marker) {
+
+    }
+
+    @Override
+    public void onMarkerDrag(Marker marker) {
+
+    }
+
+    @Override
+    public void onMarkerDragEnd(Marker marker) {
+        dragMarker = true;
+        clearPolyLines();
+        drawAllPolylines();
+        clearPolygon();
+        reDrawShape();
+    }
+
 
 }
